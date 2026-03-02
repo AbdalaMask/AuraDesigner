@@ -11,6 +11,12 @@ namespace AuraDesigner.ViewModels;
 public class SolutionExplorerViewModel : Tool
 {
     public ObservableCollection<SolutionNode> RootNodes { get; } = new();
+    private string? _projectRoot;
+    public string? ProjectRoot 
+    { 
+        get => _projectRoot; 
+        private set => SetProperty(ref _projectRoot, value); 
+    }
 
     public event EventHandler<string>? FileOpenRequested;
 
@@ -38,6 +44,7 @@ public class SolutionExplorerViewModel : Tool
 
         if (Directory.Exists(targetDirectory))
         {
+            ProjectRoot = targetDirectory;
             var root = new SolutionNode 
             { 
                 Name = isProjectFile ? $"Project '{Path.GetFileName(path)}'" : $"Folder '{Path.GetFileName(targetDirectory)}'", 

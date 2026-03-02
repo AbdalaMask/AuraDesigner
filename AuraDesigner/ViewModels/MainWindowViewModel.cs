@@ -1,6 +1,7 @@
 using Dock.Model.Controls;
 using Dock.Model.Core;
 using Dock.Model.Mvvm.Controls;
+using System.ComponentModel;
 
 namespace AuraDesigner.ViewModels;
 
@@ -54,6 +55,58 @@ public class MainWindowViewModel : ViewModelBase
         {
             ErrorListViewModel.Instance?.AddError(msg, code, file, line);
         };
+
+        if (Factory is AuraDockFactory docFactory)
+        {
+            if (docFactory.SolutionExplorer != null)
+            {
+                docFactory.SolutionExplorer.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(SolutionExplorerViewModel.ProjectRoot) && docFactory.Git != null)
+                    {
+                        docFactory.Git.SetRepositoryPath(docFactory.SolutionExplorer.ProjectRoot ?? string.Empty);
+                    }
+                };
+            }
+
+            if (docFactory.DocumentDock is IDock documentDock && documentDock is INotifyPropertyChanged notify)
+            {
+                notify.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(IDock.ActiveDockable))
+                    {
+                        UpdateLogicalTree(documentDock.ActiveDockable);
+                    }
+                };
+                
+                // Initial update
+                UpdateLogicalTree(documentDock.ActiveDockable);
+            }
+        }
+    }
+
+    private void UpdateLogicalTree(IDockable? activeDockable)
+    {
+        if (Factory is AuraDockFactory docFactory && docFactory.LogicalTree != null)
+        {
+            if (activeDockable is DocumentViewModel docVM)
+            {
+                docFactory.LogicalTree.Sync(docVM.RootItem);
+                
+                // Also listen for RootItem changes on the active document
+                docVM.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(DocumentViewModel.RootItem))
+                    {
+                        docFactory.LogicalTree.Sync(docVM.RootItem);
+                    }
+                };
+            }
+            else
+            {
+                docFactory.LogicalTree.Sync(null);
+            }
+        }
     }
 
     public async void OpenProjectCommand()

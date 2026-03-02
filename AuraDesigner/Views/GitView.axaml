@@ -1,0 +1,74 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:AuraDesigner.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="300"
+             x:Class="AuraDesigner.Views.GitView"
+             x:DataType="vm:GitViewModel">
+  <Panel>
+    <!-- Git Repository Content -->
+    <Grid RowDefinitions="Auto, *, Auto" IsVisible="{Binding IsGitRepository}">
+      <!-- Header -->
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10,5">
+        <TextBlock Text="Local Changes" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Button Command="{Binding RefreshCommand}" Background="Transparent" BorderThickness="0" Margin="5,0" Cursor="Hand">
+          <TextBlock Text="🔄" />
+        </Button>
+      </StackPanel>
+
+      <!-- Changes List -->
+      <ListBox Grid.Row="1" ItemsSource="{Binding ChangedFiles}" Margin="5" Background="Transparent" BorderThickness="0">
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid ColumnDefinitions="Auto, *, Auto" Margin="2">
+              <TextBlock Grid.Column="0" Text="📄" Margin="0,0,8,0" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding FileName}" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="10" Opacity="0.6" VerticalAlignment="Center" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- Commit Area -->
+      <Border Grid.Row="2" Background="#1AFFFFFF" Padding="10" BorderBrush="#22FFFFFF" BorderThickness="0,1,0,0">
+        <StackPanel Spacing="10">
+          <Button Command="{Binding SaveAndSyncCommand}" Content="Save &amp; Sync (Add + Commit + Push)" 
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" 
+                  Classes="accent" />
+
+          <Separator Margin="0,5" />
+          
+          <TextBox Text="{Binding CommitMessage}" Watermark="Commit message..." AcceptsReturn="False" />
+          
+          <Grid ColumnDefinitions="*, *" ColumnSpacing="5">
+            <Button Grid.Column="0" Command="{Binding StageAllCommand}" Content="Stage All" Padding="5" 
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            <Button Grid.Column="1" Command="{Binding CommitCommand}" Content="Commit" Padding="5" 
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+          </Grid>
+
+          <Button Command="{Binding PushCommand}" Content="Push to Remote" 
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+          
+          <Separator Margin="0,5" />
+          
+          <Grid ColumnDefinitions="*, Auto" Margin="0,5,0,0">
+            <TextBox Grid.Column="0" Text="{Binding TagName}" Watermark="Tag name (e.g. v1.0.0)" Margin="0,0,5,0" />
+            <Button Grid.Column="1" Command="{Binding TagLastCommitCommand}" Content="Tag Last" />
+          </Grid>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Not a Git Repository Message -->
+    <StackPanel IsVisible="{Binding !IsGitRepository}" 
+                VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
+      <TextBlock Text="⚠" FontSize="40" HorizontalAlignment="Center" Opacity="0.5" />
+      <TextBlock Text="No Git repository detected." 
+                 HorizontalAlignment="Center" Opacity="0.7" />
+      <TextBlock Text="Open a folder that is a Git repository to enable Git features." 
+                 FontSize="11" HorizontalAlignment="Center" Opacity="0.5" />
+    </StackPanel>
+  </Panel>
+</UserControl>

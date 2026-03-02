@@ -5,6 +5,7 @@ using Avalonia.VisualTree;
 using AuraDesigner.DesignSurface;
 using AuraDesigner.Adorners;
 using AuraDesigner.Core.Models;
+using AuraDesigner.ViewModels;
 using System.Linq;
 
 namespace AuraDesigner.Views;
@@ -60,6 +61,10 @@ public partial class DocumentView : UserControl
                     if (newRootItem != null && _surface != null)
                     {
                         _surface.RootItem = newRootItem;
+                        if (DataContext is DocumentViewModel docVM)
+                        {
+                            docVM.RootItem = newRootItem;
+                        }
                     }
                 }
             }
@@ -139,6 +144,11 @@ public partial class DocumentView : UserControl
 
                 // Run Xaml Sync
                 UpdateXamlView();
+                
+                if (DataContext is DocumentViewModel docVM)
+                {
+                    docVM.RootItem = _surface.RootItem;
+                }
             }
         }
         e.Handled = true;
@@ -219,6 +229,7 @@ public partial class DocumentView : UserControl
         if (hitItem != null)
         {
             _adornerLayer.SelectItem(hitItem);
+            SelectionService.SelectedItem = hitItem;
             e.Handled = true;
         }
     }

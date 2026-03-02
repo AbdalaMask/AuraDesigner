@@ -14,6 +14,9 @@ public class AuraDockFactory : Factory
     private IDocumentDock? _documentDock;
 
     public SolutionExplorerViewModel? SolutionExplorer { get; private set; }
+    public LogicalTreeViewModel? LogicalTree { get; private set; }
+    public GitViewModel? Git { get; private set; }
+    public IDocumentDock? DocumentDock => _documentDock;
 
     public override IRootDock CreateLayout()
     {
@@ -45,11 +48,22 @@ public class AuraDockFactory : Factory
             ActiveDockable = new PropertiesViewModel { Id = "PropertiesPanel", Title = "Properties" }
         };
 
+        var logicalTreeVM = new LogicalTreeViewModel { Id = "LogicalTreePanel", Title = "Logical Tree" };
+        LogicalTree = logicalTreeVM;
+
+        var logicalTreeView = new ToolDock
+        {
+            Id = "LogicalTree",
+            Title = "Logical Tree",
+            Proportion = 0.3,
+            ActiveDockable = logicalTreeVM
+        };
+
         var rightPane = new ProportionalDock
         {
             Orientation = Orientation.Vertical,
             Proportion = 0.2,
-            VisibleDockables = CreateList<IDockable>(solutionView, new ProportionalDockSplitter(), propertiesView)
+            VisibleDockables = CreateList<IDockable>(solutionView, new ProportionalDockSplitter(), propertiesView, new ProportionalDockSplitter(), logicalTreeView)
         };
 
         _documentDock = new DocumentDock
@@ -75,6 +89,8 @@ public class AuraDockFactory : Factory
         var errorListVM = new ErrorListViewModel();
         var outputVM = new OutputViewModel();
         var pmcVM = new PackageManagerConsoleViewModel();
+        var gitVM = new GitViewModel { Id = "GitPanel", Title = "Git" };
+        Git = gitVM;
 
         var bottomPane = new ToolDock
         {
@@ -82,7 +98,7 @@ public class AuraDockFactory : Factory
             Title = "BottomPane",
             Proportion = 0.3,
             ActiveDockable = errorListVM,
-            VisibleDockables = CreateList<IDockable>(errorListVM, outputVM, pmcVM)
+            VisibleDockables = CreateList<IDockable>(errorListVM, outputVM, pmcVM, gitVM)
         };
 
         var rootContainer = new ProportionalDock
@@ -148,7 +164,9 @@ public class AuraDockFactory : Factory
         {
             ["ToolboxPanel"] = () => layout,
             ["SolutionPanel"] = () => layout,
-            ["PropertiesPanel"] = () => layout
+            ["PropertiesPanel"] = () => layout,
+            ["LogicalTreePanel"] = () => layout,
+            ["GitPanel"] = () => layout
         };
 
         HostWindowLocator = new Dictionary<string, Func<IHostWindow>>

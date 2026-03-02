@@ -33,41 +33,37 @@ public class DesignItem : IDesignItem
         XmlNode?.SetAttributeValue(name, value);
 
         // 2. Update the live component via Reflection
-        var property = ComponentType.GetProperty(name);
-        if (property != null && property.CanWrite)
+        var designProperty = ComponentType.GetProperty(name);
+        if (designProperty != null && designProperty.CanWrite)
         {
             try
             {
-                var convertedValue = ConvertValue(value, property.PropertyType);
-                property.SetValue(Component, convertedValue);
+                var convertedValue = PropertyConverter.ConvertValue(value, designProperty.PropertyType);
+                
+                // Try to set on the actual visual instance if the property exists there too
+                // We MUST use the instance's own property info to avoid TargetException
+                var instanceProperty = Component.GetType().GetProperty(name);
+                if (instanceProperty != null && instanceProperty.CanWrite)
+                {
+                    try 
+                    { 
+                        // Only set if we have a valid converted value
+                        if (convertedValue != null)
+                        {
+                            instanceProperty.SetValue(Component, convertedValue);
+                        }
+                    }
+                    catch (Exception ex) 
+                    { 
+                        System.Diagnostics.Debug.WriteLine($"Error setting visual property {name} on {Component.GetType().Name}: {ex.Message}"); 
+                    }
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error setting property {name}: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error preparing property {name}: {ex.Message}");
             }
         }
-    }
-
-    private object? ConvertValue(string value, Type targetType)
-    {
-        if (targetType == typeof(double)) return double.Parse(value);
-        if (targetType == typeof(int)) return int.Parse(value);
-        if (targetType == typeof(bool)) return bool.Parse(value);
-        if (targetType == typeof( Avalonia.Media.Color)) return Avalonia.Media.Color.Parse(value);
-        if (targetType.IsEnum) return Enum.Parse(targetType, value);
-        
-        if (typeof(Avalonia.Media.IBrush).IsAssignableFrom(targetType))
-        {
-            return Avalonia.Media.Brush.Parse(value);
-        }
-
-        var converter = System.ComponentModel.TypeDescriptor.GetConverter(targetType);
-        if (converter != null && converter.CanConvertFrom(typeof(string)))
-        {
-            return converter.ConvertFromInvariantString(value);
-        }
-
-        return value;
     }
 
     public void AddChild(IDesignItem child)

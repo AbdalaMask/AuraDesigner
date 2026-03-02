@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.Data;
 using AuraDesigner.Core.Models;
 
 namespace AuraDesigner.Core;
@@ -53,13 +56,8 @@ public static class XamlParser
             return null;
         }
 
-        // --- PHASE 16: Skip non-visual types ---
-        if (!typeof(Control).IsAssignableFrom(type) && !typeof(Window).IsAssignableFrom(type))
-        {
-            // We still return null so it's not added to the visual tree, 
-            // but we might want to store it in Resources later.
-            return null;
-        }
+        // --- PHASE 16: Allow non-visual types for property elements/resources ---
+        // We will filter during parenting instead.
 
         try
         {
@@ -77,31 +75,43 @@ public static class XamlParser
                 instance = Activator.CreateInstance(type);
             }
 
-            if (instance is not Control control) return null;
+            if (instance == null) return null;
 
-            var designItem = new DesignItem(control, element, designType);
-            control.IsHitTestVisible = false;
+            var designItem = new DesignItem(instance, element, designType);
+            if (instance is Control control)
+            {
+                control.IsHitTestVisible = false;
+            }
 
             ApplyProperties(designItem, element);
 
             foreach (var childElement in element.Elements())
             {
+                var localName = childElement.Name.LocalName;
+
+                // Handle Resources collection
+                if (localName.EndsWith(".Resources"))
+                {
+                    HandleResources(instance, childElement);
+                    continue;
+                }
+
                 // Skip property elements (e.g. <Button.Background>) as they are handled in ApplyProperties
-                if (childElement.Name.LocalName.Contains(".")) continue;
+                if (localName.Contains(".")) continue;
 
                 var childItem = ParseElement(childElement, designItem);
                 if (childItem != null)
                 {
                     designItem.AddChild(childItem);
 
-                    // Basic Visual Parenting
-                    if (control is Panel panel && childItem.Component is Control childControl)
+                    // Basic Visual Parenting - ONLY for Controls
+                    if (designItem.Component is Panel panel && childItem.Component is Control childControl)
                     {
                         panel.Children.Add(childControl);
                     }
-                    else if (control is ContentControl cc)
+                    else if (designItem.Component is ContentControl cc && childItem.Component is Control ccChild)
                     {
-                        cc.Content = childItem.Component;
+                        cc.Content = ccChild;
                     }
                 }
             }
@@ -117,7 +127,7 @@ public static class XamlParser
 
     private static void ApplyProperties(IDesignItem item, XElement element)
     {
-        var control = (Control)item.Content;
+        var instance = item.Component;
 
         foreach (var attr in element.Attributes())
         {
@@ -129,16 +139,19 @@ public static class XamlParser
             // --- PHASE 16: Binding Detection ---
             if (value.StartsWith("{") && value.EndsWith("}"))
             {
-                // For now, we update the XML node but don't try to resolve the binding on the live visual
-                // to avoid corruption/exceptions in the designer.
-                item.XmlNode?.SetAttributeValue(name, value);
-                continue; 
+                if (HandleMarkupExtension(instance, name, value))
+                    continue;
             }
 
             if (name.Contains("."))
-                HandleAttachedProperty(control, name, value);
+            {
+                if (instance is Control control)
+                    HandleAttachedProperty(control, name, value);
+            }
             else
+            {
                 item.SetProperty(name, value);
+            }
         }
 
         foreach (var propEl in element.Elements())
@@ -160,29 +173,41 @@ public static class XamlParser
             // --- PHASE 16: Binding Detection in Property Elements ---
             if (value.StartsWith("{") && value.EndsWith("}"))
             {
-                item.XmlNode?.Element(propertyElement.Name)?.SetValue(value);
-                return;
+                if (HandleMarkupExtension(item.Component, propertyName, value))
+                {
+                    item.XmlNode?.Element(propertyElement.Name)?.SetValue(value);
+                    return;
+                }
             }
             item.SetProperty(propertyName, value);
         }
         else
         {
+            var property = item.ComponentType.GetProperty(propertyName);
+            if (property == null) return;
+
             foreach (var childNode in propertyElement.Elements())
             {
                 var childDesignItem = ParseElement(childNode, item);
                 if (childDesignItem != null)
                 {
-                    var property = item.ComponentType.GetProperty(propertyName);
-                    if (property != null && property.CanWrite)
+                    try
                     {
-                        try
+                        var propValue = property.GetValue(item.Component);
+                        
+                        // Handle Collections (e.g. GradientStops, Children, etc.)
+                        if (propValue is System.Collections.IList list)
+                        {
+                            list.Add(childDesignItem.Component);
+                        }
+                        else if (property.CanWrite)
                         {
                             property.SetValue(item.Component, childDesignItem.Component);
                         }
-                        catch (Exception ex)
-                        {
-                            LogMessage?.Invoke($"Warning: Failed to assign property element content: {ex.Message}");
-                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogMessage?.Invoke($"Warning: Failed to assign property element content to '{propertyName}': {ex.Message}");
                     }
                 }
             }
@@ -200,27 +225,129 @@ public static class XamlParser
         var propField = ownerType.GetField(parts[1] + "Property", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
         if (propField?.GetValue(null) is AvaloniaProperty ap)
         {
+            if (value.StartsWith("{") && value.EndsWith("}"))
+            {
+                HandleMarkupExtension(control, ap, value);
+                return;
+            }
+
             try { control.SetValue(ap, ConvertValue(value, ap.PropertyType)); }
             catch { /* Ignore conversion errors */ }
         }
     }
 
-    private static object? ConvertValue(string value, Type targetType)
+    private static bool HandleMarkupExtension(object instance, string propertyName, string markup)
     {
-        if (targetType == typeof(double)) return double.Parse(value);
-        if (targetType == typeof(int)) return int.Parse(value);
-        if (targetType == typeof(bool)) return bool.Parse(value);
-        if (targetType == typeof(Thickness)) return Thickness.Parse(value);
-        if (targetType == typeof(Color)) return Color.Parse(value);
+        var type = instance.GetType();
+        var property = type.GetProperty(propertyName);
+        if (property == null) return false;
 
-        // --- PHASE 16: Brush/Media Handling ---
-        if (typeof(IBrush).IsAssignableFrom(targetType))
+        // Try to find the AvaloniaProperty equivalent for Bind()
+        var apField = type.GetField(propertyName + "Property", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
+        var ap = apField?.GetValue(null) as AvaloniaProperty;
+
+        if (ap != null && instance is AvaloniaObject ao)
         {
-            try { return Brush.Parse(value); } catch { return Brushes.Transparent; }
+            return HandleMarkupExtension(ao, ap, markup);
         }
 
-        var converter = System.ComponentModel.TypeDescriptor.GetConverter(targetType);
-        return (converter != null && converter.CanConvertFrom(typeof(string))) ? converter.ConvertFromInvariantString(value) : value;
+        return false;
+    }
+
+    private static bool HandleMarkupExtension(AvaloniaObject instance, AvaloniaProperty property, string markup)
+    {
+        markup = markup.Trim('{', '}');
+        var parts = markup.Split(' ', 2);
+        var extensionType = parts[0];
+        var args = parts.Length > 1 ? parts[1] : "";
+
+        if (extensionType == "Binding" || extensionType == "CompiledBinding")
+        {
+            var binding = new Binding();
+            // Simple path parsing
+            if (!string.IsNullOrEmpty(args) && !args.Contains("="))
+            {
+                binding.Path = args;
+            }
+            else if (!string.IsNullOrEmpty(args))
+            {
+                // Handle properties like ElementName=input
+                var argParts = args.Split(',');
+                foreach (var argPart in argParts)
+                {
+                    var kv = argPart.Trim().Split('=');
+                    if (kv.Length == 2)
+                    {
+                        var key = kv[0].Trim();
+                        var val = kv[1].Trim();
+                        if (key == "ElementName") binding.ElementName = val;
+                        else if (key == "Path") binding.Path = val;
+                    }
+                }
+            }
+            instance.Bind(property, binding);
+            return true;
+        }
+        else if (extensionType == "StaticResource" || extensionType == "DynamicResource")
+        {
+            var resourceKey = args.Trim();
+            if (extensionType == "StaticResource")
+            {
+                // Only IResourceHost supports Resource lookup
+                if (instance is IResourceHost host && host.TryFindResource(resourceKey, out var res))
+                {
+                    instance.SetValue(property, res);
+                }
+            }
+            else
+            {
+                if (instance is IResourceHost host)
+                {
+                    instance.Bind(property, host.GetResourceObservable(resourceKey).ToBinding());
+                }
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void HandleResources(object instance, XElement resourcesElement)
+    {
+        // Many Avalonia objects (Control, Style, App) have a Resources property
+        // but no common interface exposes it. Use reflection.
+        var prop = instance.GetType().GetProperty("Resources", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        var resources = prop?.GetValue(instance) as System.Collections.IDictionary;
+        if (resources == null) return;
+
+        foreach (var resourceNode in resourcesElement.Elements())
+        {
+            var key = resourceNode.Attribute(XamlNamespace + "Key")?.Value ?? resourceNode.Attribute("Key")?.Value;
+            if (string.IsNullOrEmpty(key)) continue;
+
+            var type = ResolveType(resourceNode.Name.LocalName);
+            if (type != null)
+            {
+                try
+                {
+                    var value = PropertyConverter.ConvertValue(resourceNode.Value, type);
+                    if (value == null && resourceNode.HasElements)
+                    {
+                        // Handle more complex resources later
+                    }
+                    else
+                    {
+                        resources[key] = value;
+                    }
+                }
+                catch { }
+            }
+        }
+    }
+
+    private static object? ConvertValue(string value, Type targetType)
+    {
+        return PropertyConverter.ConvertValue(value, targetType);
     }
 
     private static readonly Dictionary<string, Type?> TypeCache = new();
@@ -237,8 +364,11 @@ public static class XamlParser
             {
                 // Try common namespaces
                 var type = assembly.GetType("Avalonia.Controls." + typeName) 
+                        ?? assembly.GetType("Avalonia.Controls.Shapes." + typeName)
+                        ?? assembly.GetType("Avalonia.Controls.Primitives." + typeName)
                         ?? assembly.GetType("Avalonia." + typeName)
                         ?? assembly.GetType("Avalonia.Media." + typeName)
+                        ?? assembly.GetType("Avalonia.Media.Imaging." + typeName)
                         ?? assembly.GetType("Avalonia.Styling." + typeName)
                         ?? assembly.GetType("Avalonia.Animation." + typeName);
 
