@@ -1,0 +1,11 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AuraDesigner.Views.ToolboxView">
+    <Grid Background="#ffffff">
+        <StackPanel Margin="10">
+            <TextBlock Text="Toolbox" Foreground="Black" FontWeight="Bold" Margin="0,0,0,10"/>
+            <Button Content="Add Button" HorizontalAlignment="Stretch" Margin="0,5"/>
+            <Button Content="Add TextBox" HorizontalAlignment="Stretch" Margin="0,5"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

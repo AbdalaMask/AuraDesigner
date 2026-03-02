@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AuraDesigner.Adorners/AuraDesigner.Adorners.csproj" />
+  <Project Path="AuraDesigner.Core/AuraDesigner.Core.csproj" />
+  <Project Path="AuraDesigner.DesignSurface/AuraDesigner.DesignSurface.csproj" />
+  <Project Path="AuraDesigner/AuraDesigner.csproj" />
+</Solution>

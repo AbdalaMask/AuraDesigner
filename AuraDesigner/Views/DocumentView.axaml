@@ -1,0 +1,36 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:surface="clr-namespace:AuraDesigner.DesignSurface;assembly=AuraDesigner.DesignSurface"
+             xmlns:adorners="clr-namespace:AuraDesigner.Adorners;assembly=AuraDesigner.Adorners"
+             xmlns:avaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="AuraDesigner.Views.DocumentView">
+    <Grid RowDefinitions="*, 4, 150">
+        <!-- Visual Designer Top -->
+        <Border Grid.Row="0" Background="#f3f3f3">
+            <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border Background="White" BorderBrush="DarkGray" BorderThickness="1" 
+                        BoxShadow="5 5 20 0 #55000000" Width="800" Height="450">
+                    <Grid>
+                        <!-- Placeholders - the viewmodel would link these properly later -->
+                        <surface:DesignSurfaceControl x:Name="DesignSurface" />
+                        <adorners:DesignAdornerLayer x:Name="AdornerLayer" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <GridSplitter Grid.Row="1" Background="#e0e0e0" ResizeDirection="Rows"/>
+
+        <!-- XAML Editor Bottom -->
+        <Border Grid.Row="2" Background="#ffffff" BorderBrush="#e0e0e0" BorderThickness="0,1,0,0">
+            <avaloniaEdit:TextEditor Name="XamlEditor"
+                                     ShowLineNumbers="True"
+                                     FontFamily="Consolas,Monospace"
+                                     SyntaxHighlighting="XML"
+                                     Text="&lt;Window xmlns=&quot;https://github.com/avaloniaui&quot;&#x0a;        Title=&quot;My Window&quot;&gt;&#x0a;    &lt;Button Content=&quot;Hello Visual Studio layout!&quot;/&gt;&#x0a;&lt;/Window&gt;" />
+        </Border>
+    </Grid>
+</UserControl>
