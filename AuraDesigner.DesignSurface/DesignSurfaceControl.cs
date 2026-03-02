@@ -72,7 +72,19 @@ public class DesignSurfaceControl : Decorator
 
     private void UpdateSurface()
     {
-        if (_rootItem?.Component is Control control)
+        if (_rootItem?.Component is Window window)
+        {
+            // Top-level controls like Window cannot be children of other controls.
+            // We host the interior of the window instead.
+            var content = window.Content as Control;
+            if (content != null)
+            {
+                // Detach from the window so we can host it in our surface
+                window.Content = null;
+                Child = content;
+            }
+        }
+        else if (_rootItem?.Component is Control control)
         {
             Child = control;
         }

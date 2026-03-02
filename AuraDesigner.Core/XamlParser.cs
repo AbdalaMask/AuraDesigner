@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Xml.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.LogicalTree;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using AuraDesigner.Core.Models;
 
 namespace AuraDesigner.Core;
@@ -19,34 +21,9 @@ public static class XamlParser
     {
         try
         {
-            LogMessage?.Invoke("Starting XAML parse...");
-
+            LogMessage?.Invoke("Starting Granular XAML parse...");
             var doc = XDocument.Parse(xaml);
-            var mapping = new Dictionary<XElement, string>();
-            var injectedAttributes = new List<XAttribute>();
-
-            // 1. Inject Name logic for mapping mapping
-            InjectNames(doc.Root, mapping, injectedAttributes);
-
-            // 2. Load the modified XAML
-            var modifiedXaml = doc.ToString();
-            var loadedObject = AvaloniaRuntimeXamlLoader.Load(modifiedXaml);
-            
-            // 3. Clean up the injected names from the XML DOM mapping immediately
-            foreach (var attr in injectedAttributes)
-            {
-                attr.Remove();
-            }
-
-            if (loadedObject is Control rootControl)
-            {
-                // Disable hit testing so controls in the designer don't intercept clicks natively
-                DisableHitTesting(rootControl);
-
-                // 4. Build DesignItem Tree mapping Logical Tree to XML Nodes
-                LogMessage?.Invoke("XAML parsed successfully into Visual Tree.");
-                return BuildDesignTree(doc.Root, rootControl, mapping);
-            }
+            return ParseElement(doc.Root, null);
         }
         catch (System.Xml.XmlException xmlEx)
         {
@@ -56,10 +33,151 @@ public static class XamlParser
         catch (Exception ex)
         {
             LogError?.Invoke(ex.Message, "XAML001", "DocumentView.axaml", 0);
-            LogMessage?.Invoke($"XAML Runtime Loader Error: {ex.Message}");
+            LogMessage?.Invoke($"XAML Parser Error: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"XAML Parse Error: {ex}");
         }
         return null;
+    }
+
+    private static IDesignItem? ParseElement(XElement? element, IDesignItem? parent)
+    {
+        if (element == null) return null;
+
+        var typeName = element.Name.LocalName;
+        if (typeName.Contains(".")) return null;
+
+        var type = ResolveType(typeName);
+        if (type == null)
+        {
+            LogMessage?.Invoke($"Warning: Type '{typeName}' not found.");
+            return null;
+        }
+
+        try
+        {
+            var instance = Activator.CreateInstance(type);
+            if (instance is not Control control) return null;
+
+            var designItem = new DesignItem(control, element);
+            control.IsHitTestVisible = false;
+
+            ApplyProperties(designItem, element);
+
+            foreach (var childElement in element.Elements())
+            {
+                // Skip property elements (e.g. <Button.Background>) as they are handled in ApplyProperties
+                if (childElement.Name.LocalName.Contains(".")) continue;
+
+                var childItem = ParseElement(childElement, designItem);
+                if (childItem != null)
+                {
+                    designItem.AddChild(childItem);
+
+                    // Basic Visual Parenting
+                    if (control is Panel panel && childItem.Component is Control childControl)
+                    {
+                        panel.Children.Add(childControl);
+                    }
+                    else if (control is ContentControl cc)
+                    {
+                        cc.Content = childItem.Component;
+                    }
+                }
+            }
+
+            return designItem;
+        }
+        catch (Exception ex)
+        {
+            LogMessage?.Invoke($"Error creating '{typeName}': {ex.Message}");
+            return null;
+        }
+    }
+
+    private static void ApplyProperties(IDesignItem item, XElement element)
+    {
+        var control = (Control)item.Content;
+
+        foreach (var attr in element.Attributes())
+        {
+            if (attr.Name.NamespaceName == XamlNamespace.NamespaceName || attr.IsNamespaceDeclaration) continue;
+
+            var name = attr.Name.LocalName;
+            var value = attr.Value;
+
+            if (name.Contains("."))
+                HandleAttachedProperty(control, name, value);
+            else
+                item.SetProperty(name, value);
+        }
+
+        foreach (var propEl in element.Elements())
+        {
+            if (propEl.Name.LocalName.StartsWith(element.Name.LocalName + "."))
+            {
+                HandlePropertyElement(item, propEl);
+            }
+        }
+    }
+
+    private static void HandlePropertyElement(IDesignItem item, XElement propertyElement)
+    {
+        var propertyName = propertyElement.Name.LocalName.Split('.').Last();
+        
+        if (!propertyElement.HasElements)
+        {
+            item.SetProperty(propertyName, propertyElement.Value);
+        }
+        else
+        {
+            foreach (var childNode in propertyElement.Elements())
+            {
+                var childDesignItem = ParseElement(childNode, item);
+                if (childDesignItem != null)
+                {
+                    var property = item.ComponentType.GetProperty(propertyName);
+                    if (property != null && property.CanWrite)
+                    {
+                        try
+                        {
+                            property.SetValue(item.Component, childDesignItem.Component);
+                        }
+                        catch (Exception ex)
+                        {
+                            LogMessage?.Invoke($"Warning: Failed to assign property element content: {ex.Message}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static void HandleAttachedProperty(Control control, string fullName, string value)
+    {
+        var parts = fullName.Split('.');
+        if (parts.Length != 2) return;
+
+        var ownerType = ResolveType(parts[0]);
+        if (ownerType == null) return;
+
+        var propField = ownerType.GetField(parts[1] + "Property", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.FlattenHierarchy);
+        if (propField?.GetValue(null) is AvaloniaProperty ap)
+        {
+            try { control.SetValue(ap, ConvertValue(value, ap.PropertyType)); }
+            catch { /* Ignore conversion errors */ }
+        }
+    }
+
+    private static object? ConvertValue(string value, Type targetType)
+    {
+        if (targetType == typeof(double)) return double.Parse(value);
+        if (targetType == typeof(int)) return int.Parse(value);
+        if (targetType == typeof(bool)) return bool.Parse(value);
+        if (targetType == typeof(Thickness)) return Thickness.Parse(value);
+        if (targetType == typeof(Color)) return Color.Parse(value);
+
+        var converter = System.ComponentModel.TypeDescriptor.GetConverter(targetType);
+        return (converter != null && converter.CanConvertFrom(typeof(string))) ? converter.ConvertFromInvariantString(value) : value;
     }
 
     private static readonly Dictionary<string, Type?> TypeCache = new();
@@ -71,9 +189,12 @@ public static class XamlParser
         var assemblies = AppDomain.CurrentDomain.GetAssemblies();
         foreach (var assembly in assemblies)
         {
-            if (assembly.FullName != null && assembly.FullName.StartsWith("Avalonia"))
+            var name = assembly.GetName().Name;
+            if (name != null && (name.StartsWith("Avalonia") || name == "AuraDesigner"))
             {
-                var type = System.Linq.Enumerable.FirstOrDefault(assembly.GetTypes(), t => t.Name == typeName);
+                var type = assembly.GetType("Avalonia.Controls." + typeName) ?? assembly.GetType("Avalonia." + typeName);
+                if (type == null) type = System.Linq.Enumerable.FirstOrDefault(assembly.GetTypes(), t => t.Name == typeName);
+                
                 if (type != null)
                 {
                     TypeCache[typeName] = type;
@@ -83,117 +204,5 @@ public static class XamlParser
         }
         TypeCache[typeName] = null;
         return null;
-    }
-
-    private static void InjectNames(XElement? element, Dictionary<XElement, string> mapping, List<XAttribute> injectedAttributes)
-    {
-        if (element == null) return;
-
-        // Skip property elements (e.g. <Button.Background>)
-        if (!element.Name.LocalName.Contains("."))
-        {
-            var type = ResolveType(element.Name.LocalName);
-            bool supportsName = type != null && typeof(Avalonia.StyledElement).IsAssignableFrom(type);
-
-            if (supportsName)
-            {
-                var xNameAttr = element.Attribute(XamlNamespace + "Name");
-                var nameAttr = element.Attribute("Name");
-                
-                string elementName;
-
-                if (xNameAttr != null)
-                {
-                    elementName = xNameAttr.Value;
-                }
-                else if (nameAttr != null)
-                {
-                    elementName = nameAttr.Value;
-                }
-                else
-                {
-                    // Inject our own identifier
-                    elementName = "__aura_" + Guid.NewGuid().ToString("N");
-                    var newAttr = new XAttribute("Name", elementName);
-                    element.Add(newAttr);
-                    injectedAttributes.Add(newAttr);
-                }
-
-                mapping[element] = elementName;
-            }
-        }
-
-        foreach (var child in element.Elements())
-        {
-            InjectNames(child, mapping, injectedAttributes);
-        }
-    }
-
-    private static IDesignItem? BuildDesignTree(XElement? element, Control rootControl, Dictionary<XElement, string> mapping)
-    {
-        if (element == null) return null;
-
-        if (mapping.TryGetValue(element, out var name))
-        {
-            // Find the control in the logical tree of the loaded root
-            var control = FindControlByName(rootControl, name);
-            
-            if (control is Control visualControl)
-            {
-                var item = new DesignItem(visualControl)
-                {
-                    Name = visualControl.Name != null && !visualControl.Name.StartsWith("__aura_") ? visualControl.Name : element.Name.LocalName,
-                    XmlNode = element // Store the ORIGINAL, clean XElement
-                };
-
-                // Recursively process children XML nodes
-                foreach (var childXml in element.Elements())
-                {
-                    var childItem = BuildDesignTree(childXml, rootControl, mapping);
-                    if (childItem != null)
-                    {
-                        item.AddChild((DesignItem)childItem);
-                    }
-                }
-
-                return item;
-            }
-        }
-
-        // Even if we couldn't map this specific visual node (maybe it wasn't a Control),
-        // we should still traverse its XML children in case they contain valid Controls.
-        foreach (var childXml in element.Elements())
-        {
-            var childItem = BuildDesignTree(childXml, rootControl, mapping);
-            if (childItem != null) return childItem; // Returns the first valid mapped child as the passthrough. (Simplification for property nodes)
-        }
-
-        return null;
-    }
-
-    private static object? FindControlByName(ILogical root, string name)
-    {
-        if (root is Control c && c.Name == name) return c;
-        if (root is Avalonia.StyledElement se && se.Name == name) return se;
-
-        foreach (var child in root.LogicalChildren)
-        {
-            var found = FindControlByName(child, name);
-            if (found != null) return found;
-        }
-        return null;
-    }
-
-    private static void DisableHitTesting(ILogical root)
-    {
-        if (root is Avalonia.Input.InputElement ie)
-        {
-            ie.IsHitTestVisible = false;
-        }
-
-        foreach (var child in root.LogicalChildren)
-        {
-            DisableHitTesting(child);
-        }
     }
 }
