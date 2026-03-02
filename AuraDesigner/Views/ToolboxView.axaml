@@ -1,11 +1,21 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="AuraDesigner.Views.ToolboxView">
+             xmlns:vm="using:AuraDesigner.ViewModels"
+             x:Class="AuraDesigner.Views.ToolboxView"
+             x:DataType="vm:ToolboxViewModel">
     <Grid Background="#ffffff">
-        <StackPanel Margin="10">
-            <TextBlock Text="Toolbox" Foreground="Black" FontWeight="Bold" Margin="0,0,0,10"/>
-            <Button Content="Add Button" HorizontalAlignment="Stretch" Margin="0,5"/>
-            <Button Content="Add TextBox" HorizontalAlignment="Stretch" Margin="0,5"/>
-        </StackPanel>
+        <Grid RowDefinitions="Auto, *">
+            <TextBlock Grid.Row="0" Text="Standard Controls" Foreground="Black" FontWeight="Bold" Margin="10"/>
+            <ListBox x:Name="ControlList" Grid.Row="1" ItemsSource="{Binding AvailableControls}" Margin="5">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="2">
+                            <TextBlock Text="🧩 " />
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
     </Grid>
 </UserControl>

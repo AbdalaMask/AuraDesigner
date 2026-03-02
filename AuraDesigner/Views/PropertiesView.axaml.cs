@@ -2,9 +2,9 @@ using Avalonia.Controls;
 
 namespace AuraDesigner.Views;
 
-public partial class SolutionPanel : UserControl
+public partial class PropertiesView : UserControl
 {
-    public SolutionPanel()
+    public PropertiesView()
     {
         InitializeComponent();
     }

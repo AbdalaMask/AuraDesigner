@@ -11,8 +11,8 @@
         <!-- Visual Designer Top -->
         <Border Grid.Row="0" Background="#f3f3f3">
             <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Border Background="White" BorderBrush="DarkGray" BorderThickness="1" 
-                        BoxShadow="5 5 20 0 #55000000" Width="800" Height="450">
+                <Border x:Name="DesignerBorder" Background="White" BorderBrush="DarkGray" BorderThickness="1" 
+                        BoxShadow="5 5 20 0 #55000000" Width="800" Height="450" DragDrop.AllowDrop="True">
                     <Grid>
                         <!-- Placeholders - the viewmodel would link these properly later -->
                         <surface:DesignSurfaceControl x:Name="DesignSurface" />

@@ -16,7 +16,7 @@ public class MainWindowViewModel : ViewModelBase
             if (_factory != value)
             {
                 _factory = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
     }
@@ -29,7 +29,7 @@ public class MainWindowViewModel : ViewModelBase
             if (_layout != value)
             {
                 _layout = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
     }
