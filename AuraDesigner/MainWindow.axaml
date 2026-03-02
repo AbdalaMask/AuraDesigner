@@ -19,7 +19,7 @@
         <!-- Top Menu Bar -->
         <Menu DockPanel.Dock="Top" Background="White" BorderBrush="LightGray" BorderThickness="0,0,0,1">
             <MenuItem Header="_File">
-                <MenuItem Header="_New Project..."/>
+                <MenuItem Header="_New Project..." Command="{Binding NewProjectCommand}"/>
                 <MenuItem Header="_Open Project..." Command="{Binding OpenProjectCommand}"/>
                 <Separator/>
                 <MenuItem Header="E_xit"/>

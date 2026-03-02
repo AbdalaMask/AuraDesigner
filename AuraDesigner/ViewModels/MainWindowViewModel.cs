@@ -79,4 +79,22 @@ public class MainWindowViewModel : ViewModelBase
             }
         }
     }
+
+    public async void NewProjectCommand()
+    {
+        if (Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop && desktop.MainWindow != null)
+        {
+            var window = new AuraDesigner.Views.NewProjectWindow();
+            var result = await window.ShowDialog<string?>(desktop.MainWindow);
+
+            if (!string.IsNullOrEmpty(result))
+            {
+                // Route this down directly to the SolutionExplorer in the Factory
+                if (Factory is AuraDockFactory docFactory && docFactory.SolutionExplorer != null)
+                {
+                    docFactory.SolutionExplorer.LoadProject(result);
+                }
+            }
+        }
+    }
 }
