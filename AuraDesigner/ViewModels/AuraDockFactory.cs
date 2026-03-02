@@ -52,17 +52,11 @@ public class AuraDockFactory : Factory
             VisibleDockables = CreateList<IDockable>(solutionView, new ProportionalDockSplitter(), propertiesView)
         };
 
-        var document1 = new DocumentViewModel
-        {
-            Id = "MainWindow.axaml",
-            Title = "MainWindow.axaml"
-        };
-
         _documentDock = new DocumentDock
         {
             IsCollapsable = false,
-            ActiveDockable = document1,
-            VisibleDockables = CreateList<IDockable>(document1),
+            ActiveDockable = null,
+            VisibleDockables = CreateList<IDockable>(),
             CanCreateDocument = true
         };
 
@@ -78,10 +72,33 @@ public class AuraDockFactory : Factory
             )
         };
 
+        var errorListVM = new ErrorListViewModel();
+        var outputVM = new OutputViewModel();
+        var pmcVM = new PackageManagerConsoleViewModel();
+
+        var bottomPane = new ToolDock
+        {
+            Id = "BottomPane",
+            Title = "BottomPane",
+            Proportion = 0.3,
+            ActiveDockable = errorListVM,
+            VisibleDockables = CreateList<IDockable>(errorListVM, outputVM, pmcVM)
+        };
+
+        var rootContainer = new ProportionalDock
+        {
+            Orientation = Orientation.Vertical,
+            VisibleDockables = CreateList<IDockable>(
+                mainLayout,
+                new ProportionalDockSplitter(),
+                bottomPane
+            )
+        };
+
         var rootDock = CreateRootDock();
         rootDock.IsCollapsable = false;
-        rootDock.DefaultDockable = mainLayout;
-        rootDock.VisibleDockables = CreateList<IDockable>(mainLayout);
+        rootDock.DefaultDockable = rootContainer;
+        rootDock.VisibleDockables = CreateList<IDockable>(rootContainer);
 
         _rootDock = rootDock;
         return rootDock;
@@ -131,8 +148,7 @@ public class AuraDockFactory : Factory
         {
             ["ToolboxPanel"] = () => layout,
             ["SolutionPanel"] = () => layout,
-            ["PropertiesPanel"] = () => layout,
-            ["MainWindow.axaml"] = () => layout
+            ["PropertiesPanel"] = () => layout
         };
 
         HostWindowLocator = new Dictionary<string, Func<IHostWindow>>

@@ -25,7 +25,7 @@ public partial class DocumentView : UserControl
         {
             // It's vital we use Tunnel so we catch all clicks before the controls consume them
             _surface.AddHandler(PointerPressedEvent, OnSurfacePointerPressed, RoutingStrategies.Tunnel);
-            _adornerLayer.AdornerUpdated += (s, e) => UpdateXamlView();
+            _adornerLayer.ItemManipulated += (s, e) => UpdateXamlView();
         }
 
         var designerBorder = this.FindControl<Border>("DesignerBorder");
@@ -74,44 +74,67 @@ public partial class DocumentView : UserControl
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
-        if (e.Data.Get("AuraDesignerItem") is string typeName && _surface?.RootItem?.Component is Canvas rootCanvas)
+        if (e.Data.Get("AuraDesignerItem") is string typeName)
         {
             var controlType = System.Type.GetType(typeName);
             if (controlType != null && System.Activator.CreateInstance(controlType) is Control newControl)
             {
-                var pos = e.GetPosition(rootCanvas);
-                
+                var pos = e.GetPosition(_surface);
+
                 // Set default styles/content so items like Button or Rectangle have visibility
-                if (newControl is Button btn) btn.Content = "New " + controlType.Name;
+                if (double.IsNaN(newControl.Width)) newControl.Width = 100;
+                if (double.IsNaN(newControl.Height)) newControl.Height = 30;
+                if (newControl is Button btn) btn.Content = controlType.Name;
+                if (newControl is TextBlock tb) tb.Text = "Text";
                 if (newControl is TextBox tx) tx.Text = "Text";
-                
-                // Auto-wrap root controls that aren't Panels
-                if (!_surface.RootItem.Children.Any() && !(newControl is Panel))
+
+                // Setup raw XElement to back this control
+                System.Xml.Linq.XNamespace ns = "https://github.com/avaloniaui";
+                var newNode = new System.Xml.Linq.XElement(ns + controlType.Name);
+                newNode.SetAttributeValue("Width", 100);
+                newNode.SetAttributeValue("Height", 30);
+                if (newControl is Button) newNode.SetAttributeValue("Content", controlType.Name);
+                if (newControl is TextBlock || newControl is TextBox) newNode.SetAttributeValue("Text", "Text");
+
+                var newItem = new DesignItem(newControl) { Name = controlType.Name, XmlNode = newNode };
+
+                if (_surface?.RootItem == null)
                 {
-                    var wrapperGrid = new Grid { Width = 800, Height = 450, Background = Avalonia.Media.Brushes.Transparent };
-                    if (double.IsNaN(newControl.Width)) newControl.Width = 100;
-                    if (double.IsNaN(newControl.Height)) newControl.Height = 30;
-                    newControl.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
-                    newControl.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
-                    
-                    wrapperGrid.Children.Add(newControl);
-                    rootCanvas.Children.Add(wrapperGrid);
-                    
-                    var wrapperItem = new DesignItem(wrapperGrid) { Name = "RootGrid" };
-                    var childItem = new DesignItem(newControl) { Name = controlType.Name };
-                    wrapperItem.AddChild(childItem);
-                    ((DesignItem)_surface.RootItem).AddChild(wrapperItem);
+                    // Dropped on an empty document, it becomes the Root!
+                    _surface.RootItem = newItem;
                 }
                 else
                 {
-                    Canvas.SetLeft(newControl, pos.X);
-                    Canvas.SetTop(newControl, pos.Y);
-                    if (double.IsNaN(newControl.Width)) newControl.Width = 100;
-                    if (double.IsNaN(newControl.Height)) newControl.Height = 30;
-
-                    rootCanvas.Children.Add(newControl);
-                    var item = new DesignItem(newControl) { Name = controlType.Name };
-                    ((DesignItem)_surface.RootItem).AddChild(item);
+                    var parentControl = _surface.RootItem.Component as Control;
+                    
+                    if (parentControl is Panel rootPanel)
+                    {
+                        if (rootPanel is Canvas)
+                        {
+                            Canvas.SetLeft(newControl, pos.X);
+                            Canvas.SetTop(newControl, pos.Y);
+                            newNode.SetAttributeValue("Canvas.Left", pos.X);
+                            newNode.SetAttributeValue("Canvas.Top", pos.Y);
+                        }
+                        else
+                        {
+                            newControl.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+                            newControl.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top;
+                            newControl.Margin = new Avalonia.Thickness(pos.X, pos.Y, 0, 0);
+                            newNode.SetAttributeValue("HorizontalAlignment", "Left");
+                            newNode.SetAttributeValue("VerticalAlignment", "Top");
+                            newNode.SetAttributeValue("Margin", $"{pos.X},{pos.Y},0,0");
+                        }
+                        rootPanel.Children.Add(newControl);
+                        ((DesignItem)_surface.RootItem).AddChild(newItem);
+                        ((DesignItem)_surface.RootItem).XmlNode?.Add(newNode);
+                    }
+                    else if (parentControl is ContentControl contentControl)
+                    {
+                        contentControl.Content = newControl;
+                        ((DesignItem)_surface.RootItem).AddChild(newItem);
+                        ((DesignItem)_surface.RootItem).XmlNode?.Add(newNode);
+                    }
                 }
 
                 // Run Xaml Sync
@@ -124,44 +147,79 @@ public partial class DocumentView : UserControl
     private void UpdateXamlView()
     {
         var editor = this.FindControl<AvaloniaEdit.TextEditor>("XamlEditor");
-        if (editor != null && _surface?.RootItem != null)
+        if (editor != null && _surface?.RootItem is DesignItem rootItem && rootItem.XmlNode != null)
         {
-            editor.Text = AuraDesigner.Core.XamlGenerator.Generate(_surface.RootItem);
+            SyncVisualToXml(rootItem);
+            editor.Text = AuraDesigner.Core.XamlGenerator.Generate(editor.Text, _surface.RootItem);
         }
+    }
+
+    private void SyncVisualToXml(DesignItem item)
+    {
+        if (item.Component is Control control && item.XmlNode != null)
+        {
+            // Sync positional and dimensional bounds that could have been modified by the Adorner layer.
+            if (!double.IsNaN(control.Width)) item.XmlNode.SetAttributeValue("Width", System.Math.Round(control.Width, 1));
+            if (!double.IsNaN(control.Height)) item.XmlNode.SetAttributeValue("Height", System.Math.Round(control.Height, 1));
+            
+            var left = Canvas.GetLeft(control);
+            if (!double.IsNaN(left)) item.XmlNode.SetAttributeValue(System.Xml.Linq.XNamespace.None + "Canvas.Left", System.Math.Round(left, 1));
+            
+            var top = Canvas.GetTop(control);
+            if (!double.IsNaN(top)) item.XmlNode.SetAttributeValue(System.Xml.Linq.XNamespace.None + "Canvas.Top", System.Math.Round(top, 1));
+            
+            // Sync Margin for Grid/StackPanel positioning
+            if (control.Margin != Avalonia.Thickness.Parse("0")) item.XmlNode.SetAttributeValue("Margin", control.Margin.ToString());
+        }
+
+        foreach (var child in item.Children.OfType<DesignItem>())
+        {
+            SyncVisualToXml(child);
+        }
+    }
+    private IDesignItem? FindDesignItemForControl(IDesignItem root, object component)
+    {
+        if (root.Component == component) return root;
+        foreach (var child in root.Children)
+        {
+            var found = FindDesignItemForControl(child, component);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     private void OnSurfacePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_surface?.RootItem?.Component is Canvas rootCanvas && _adornerLayer != null)
+        if (_surface?.RootItem == null || _adornerLayer == null) return;
+
+        var pointerElement = e.Source as Avalonia.Visual;
+        
+        IDesignItem? hitItem = null;
+        Avalonia.Visual? current = pointerElement;
+
+        // Walk up the visual tree to find an element that corresponds to an IDesignItem
+        while (current != null)
         {
-            var pointerElement = e.Source as Avalonia.Visual;
-            
-            // Did we click the canvas background?
-            if (pointerElement == rootCanvas)
+            hitItem = FindDesignItemForControl(_surface.RootItem, current);
+            if (hitItem != null)
             {
-                _adornerLayer.SelectItem(_surface.RootItem);
-                return;
-            }
-
-            // Find the clicked child by walking up the visual tree
-            var child = pointerElement;
-            while (child != null && child.GetVisualParent() != rootCanvas)
-            {
-                child = child.GetVisualParent();
-            }
-
-            if (child != null && child.GetVisualParent() == rootCanvas)
-            {
-                // Find matching design item
-                var designItem = _surface.RootItem.Children.FirstOrDefault(c => c.Component == child);
-                if (designItem != null)
+                // To avoid selecting the root canvas unless we explicitly clicked its background
+                if (hitItem == _surface.RootItem && pointerElement != _surface.RootItem.Component)
                 {
-                    _adornerLayer.SelectItem(designItem);
-                    // Crucial: Handled=true so the child button doesn't swallow the click!
-                    e.Handled = true;
-                    return;
+                    // Keep walking up if we haven't found a child control explicitly
+                }
+                else
+                {
+                    break;
                 }
             }
+            current = current.GetVisualParent();
+        }
+
+        if (hitItem != null)
+        {
+            _adornerLayer.SelectItem(hitItem);
+            e.Handled = true;
         }
     }
 }

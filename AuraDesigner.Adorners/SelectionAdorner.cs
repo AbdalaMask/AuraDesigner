@@ -26,7 +26,7 @@ public class SelectionAdorner : Canvas
         var border = new Rectangle
         {
             Stroke = new SolidColorBrush(Color.Parse("#007ACC")),
-            StrokeThickness = 2,
+            StrokeThickness = 1,
             IsHitTestVisible = false
         };
         Children.Add(border);
@@ -58,7 +58,19 @@ public class SelectionAdorner : Canvas
         _bottom.DragDelta += (s, e) => Resize(e, 0, 1, false, false);
         _left.DragDelta += (s, e) => Resize(e, -1, 0, true, false);
         _right.DragDelta += (s, e) => Resize(e, 1, 0, false, false);
+
+        _moveThumb.DragCompleted += (s, e) => ManipulationCompleted?.Invoke(this, EventArgs.Empty);
+        _topLeft.DragCompleted += (s, e) => ManipulationCompleted?.Invoke(this, EventArgs.Empty);
+        _topRight.DragCompleted += (s, e) => ManipulationCompleted?.Invoke(this, EventArgs.Empty);
+        _bottomLeft.DragCompleted += (s, e) => ManipulationCompleted?.Invoke(this, EventArgs.Empty);
+        _bottomRight.DragCompleted += (s, e) => ManipulationCompleted?.Invoke(this, EventArgs.Empty);
+        _top.DragCompleted += (s, e) => ManipulationCompleted?.Invoke(this, EventArgs.Empty);
+        _bottom.DragCompleted += (s, e) => ManipulationCompleted?.Invoke(this, EventArgs.Empty);
+        _left.DragCompleted += (s, e) => ManipulationCompleted?.Invoke(this, EventArgs.Empty);
+        _right.DragCompleted += (s, e) => ManipulationCompleted?.Invoke(this, EventArgs.Empty);
     }
+
+    public event EventHandler? ManipulationCompleted;
 
     private Thumb CreateThumb(StandardCursorType cursor)
     {

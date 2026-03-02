@@ -9,7 +9,7 @@
         Title="Create a New Project"
         Width="600" Height="450"
         WindowStartupLocation="CenterOwner"
-        Icon="/Assets/IconTagManager.ico">
+        >
 
     <Grid Margin="20">
         

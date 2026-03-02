@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Xml.Linq;
 
 namespace AuraDesigner.Core.Models;
 
@@ -9,6 +10,7 @@ public class DesignItem : IDesignItem
     public Type ComponentType { get; }
     public object Component { get; }
     public IDesignItem? Parent { get; set; }
+    public XElement? XmlNode { get; set; }
     
     private readonly List<IDesignItem> _children = new();
     public IEnumerable<IDesignItem> Children => _children;

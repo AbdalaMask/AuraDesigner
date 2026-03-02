@@ -31,17 +31,22 @@ public class DesignAdornerLayer : Canvas
         if (item != null)
         {
             _currentSelection = new SelectionAdorner(item);
+            _currentSelection.ManipulationCompleted += (s, e) => ItemManipulated?.Invoke(this, EventArgs.Empty);
             Children.Add(_currentSelection);
             UpdateAdorners();
+            SelectionService.SelectedItem = item;
+        }
+        else
+        {
+            SelectionService.SelectedItem = null;
         }
     }
 
-    public event EventHandler? AdornerUpdated;
+    public event EventHandler? ItemManipulated;
 
     public void UpdateAdorners()
     {
         _currentSelection?.UpdateBounds(this);
-        AdornerUpdated?.Invoke(this, EventArgs.Empty);
     }
 
     // Moving and Resizing is now handled safely by the Thumb controls inside the SelectionAdorner.

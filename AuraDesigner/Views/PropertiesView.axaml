@@ -1,20 +1,24 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AuraDesigner.ViewModels"
+             x:DataType="vm:PropertiesViewModel"
              x:Class="AuraDesigner.Views.PropertiesView">
     <Grid Background="#ffffff">
         <StackPanel Margin="10">
-            <TextBlock Text="Properties" Foreground="Black" FontWeight="Bold" Margin="0,0,0,10"/>
-            <!-- Placeholder for property grid -->
-            <Grid ColumnDefinitions="100, *" RowDefinitions="Auto, Auto, Auto">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" Foreground="Black" VerticalAlignment="Center" Margin="5"/>
-                <TextBox Grid.Row="0" Grid.Column="1" Text="Button1" Margin="5"/>
-                
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="Width:" Foreground="Black" VerticalAlignment="Center" Margin="5"/>
-                <TextBox Grid.Row="1" Grid.Column="1" Text="100" Margin="5"/>
-
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Height:" Foreground="Black" VerticalAlignment="Center" Margin="5"/>
-                <TextBox Grid.Row="2" Grid.Column="1" Text="30" Margin="5"/>
-            </Grid>
+            <TextBlock Text="{Binding SelectedObjectName, StringFormat='{}Properties ({0})'}" Foreground="Black" FontWeight="Bold" Margin="0,0,0,10"/>
+            
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="800">
+                <ItemsControl ItemsSource="{Binding Properties}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="120, *" RowDefinitions="Auto" Margin="0,5">
+                                <TextBlock Grid.Column="0" Text="{Binding Name}" Foreground="Black" VerticalAlignment="Center" Margin="5"/>
+                                <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" Margin="5"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
         </StackPanel>
     </Grid>
 </UserControl>

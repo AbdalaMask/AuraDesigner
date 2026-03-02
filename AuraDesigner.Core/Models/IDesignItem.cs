@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Xml.Linq;
 
 namespace AuraDesigner.Core.Models;
 
@@ -10,4 +11,5 @@ public interface IDesignItem
     object Component { get; }
     IDesignItem? Parent { get; }
     IEnumerable<IDesignItem> Children { get; }
+    XElement? XmlNode { get; set; }
 }

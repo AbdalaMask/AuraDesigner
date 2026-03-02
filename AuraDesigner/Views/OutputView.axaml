@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:AuraDesigner.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="200"
+             x:Class="AuraDesigner.Views.OutputView"
+             x:DataType="vm:OutputViewModel">
+
+    <Grid RowDefinitions="Auto, *">
+        <Border Grid.Row="0" Background="#f3f3f3" BorderBrush="LightGray" BorderThickness="0,0,0,1" Padding="5,2">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+                <TextBlock Text="Show output from:" VerticalAlignment="Center" FontSize="12"/>
+                <ComboBox SelectedIndex="0" FontSize="12" Width="150" Height="22">
+                    <ComboBoxItem>Build</ComboBoxItem>
+                    <ComboBoxItem>Designer Logger</ComboBoxItem>
+                    <ComboBoxItem>Debug</ComboBoxItem>
+                </ComboBox>
+                <Separator Width="1" Background="LightGray" Margin="5,0"/>
+                <Button BorderThickness="0" Background="Transparent" Padding="4" ToolTip.Tip="Clear All" Command="{Binding Clear}">
+                    <PathIcon Data="M 12 2 C 6.48 2 2 6.48 2 12 C 2 17.52 6.48 22 12 22 C 17.52 22 22 17.52 22 12 Z M 15 13.59 L 13.59 15 L 12 13.41 L 10.41 15 L 9 13.59 L 10.59 12 L 9 10.41 L 10.41 9 L 12 10.59 L 13.59 9 L 15 10.41 L 13.41 12 Z" Width="12" Height="12" Foreground="DarkGray"/>
+                </Button>
+            </StackPanel>
+        </Border>
+        
+        <TextBox Grid.Row="1" Text="{Binding DisplayText}" IsReadOnly="True" 
+                 TextWrapping="Wrap" AcceptsReturn="True" 
+                 FontFamily="Consolas" FontSize="12" Background="White" BorderThickness="0"/>
+    </Grid>
+</UserControl>

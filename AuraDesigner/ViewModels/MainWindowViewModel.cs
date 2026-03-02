@@ -43,6 +43,17 @@ public class MainWindowViewModel : ViewModelBase
         {
             Factory?.InitLayout(Layout);
         }
+
+        // Hook up XAML Parser logging to the new Tool Windows
+        AuraDesigner.Core.XamlParser.LogMessage = (msg) =>
+        {
+            OutputViewModel.Instance?.Log(msg);
+        };
+
+        AuraDesigner.Core.XamlParser.LogError = (msg, code, file, line) =>
+        {
+            ErrorListViewModel.Instance?.AddError(msg, code, file, line);
+        };
     }
 
     public async void OpenProjectCommand()
