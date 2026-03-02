@@ -16,13 +16,13 @@ public class DesignItem : IDesignItem
     private readonly List<IDesignItem> _children = new();
     public IEnumerable<IDesignItem> Children => _children;
 
-    public DesignItem(object component)
+    public DesignItem(object component, Type? type = null)
     {
         Component = component ?? throw new ArgumentNullException(nameof(component));
-        ComponentType = component.GetType();
+        ComponentType = type ?? component.GetType();
     }
 
-    public DesignItem(object component, XElement xmlNode) : this(component)
+    public DesignItem(object component, XElement xmlNode, Type? type = null) : this(component, type)
     {
         XmlNode = xmlNode;
     }
@@ -53,8 +53,14 @@ public class DesignItem : IDesignItem
         if (targetType == typeof(double)) return double.Parse(value);
         if (targetType == typeof(int)) return int.Parse(value);
         if (targetType == typeof(bool)) return bool.Parse(value);
+        if (targetType == typeof( Avalonia.Media.Color)) return Avalonia.Media.Color.Parse(value);
         if (targetType.IsEnum) return Enum.Parse(targetType, value);
         
+        if (typeof(Avalonia.Media.IBrush).IsAssignableFrom(targetType))
+        {
+            return Avalonia.Media.Brush.Parse(value);
+        }
+
         var converter = System.ComponentModel.TypeDescriptor.GetConverter(targetType);
         if (converter != null && converter.CanConvertFrom(typeof(string)))
         {

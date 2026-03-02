@@ -53,12 +53,33 @@ public static class XamlParser
             return null;
         }
 
+        // --- PHASE 16: Skip non-visual types ---
+        if (!typeof(Control).IsAssignableFrom(type) && !typeof(Window).IsAssignableFrom(type))
+        {
+            // We still return null so it's not added to the visual tree, 
+            // but we might want to store it in Resources later.
+            return null;
+        }
+
         try
         {
-            var instance = Activator.CreateInstance(type);
+            object? instance = null;
+            Type designType = type;
+
+            // Check if this is a top-level control that shouldn't be instantiated/added as child
+            if (typeof(Window).IsAssignableFrom(type))
+            {
+                instance = new ContentControl();
+                LogMessage?.Invoke($"Info: Substituting top-level control '{typeName}' with ContentControl for design surface.");
+            }
+            else
+            {
+                instance = Activator.CreateInstance(type);
+            }
+
             if (instance is not Control control) return null;
 
-            var designItem = new DesignItem(control, element);
+            var designItem = new DesignItem(control, element, designType);
             control.IsHitTestVisible = false;
 
             ApplyProperties(designItem, element);
@@ -105,6 +126,15 @@ public static class XamlParser
             var name = attr.Name.LocalName;
             var value = attr.Value;
 
+            // --- PHASE 16: Binding Detection ---
+            if (value.StartsWith("{") && value.EndsWith("}"))
+            {
+                // For now, we update the XML node but don't try to resolve the binding on the live visual
+                // to avoid corruption/exceptions in the designer.
+                item.XmlNode?.SetAttributeValue(name, value);
+                continue; 
+            }
+
             if (name.Contains("."))
                 HandleAttachedProperty(control, name, value);
             else
@@ -126,7 +156,14 @@ public static class XamlParser
         
         if (!propertyElement.HasElements)
         {
-            item.SetProperty(propertyName, propertyElement.Value);
+            var value = propertyElement.Value;
+            // --- PHASE 16: Binding Detection in Property Elements ---
+            if (value.StartsWith("{") && value.EndsWith("}"))
+            {
+                item.XmlNode?.Element(propertyElement.Name)?.SetValue(value);
+                return;
+            }
+            item.SetProperty(propertyName, value);
         }
         else
         {
@@ -176,6 +213,12 @@ public static class XamlParser
         if (targetType == typeof(Thickness)) return Thickness.Parse(value);
         if (targetType == typeof(Color)) return Color.Parse(value);
 
+        // --- PHASE 16: Brush/Media Handling ---
+        if (typeof(IBrush).IsAssignableFrom(targetType))
+        {
+            try { return Brush.Parse(value); } catch { return Brushes.Transparent; }
+        }
+
         var converter = System.ComponentModel.TypeDescriptor.GetConverter(targetType);
         return (converter != null && converter.CanConvertFrom(typeof(string))) ? converter.ConvertFromInvariantString(value) : value;
     }
@@ -192,7 +235,13 @@ public static class XamlParser
             var name = assembly.GetName().Name;
             if (name != null && (name.StartsWith("Avalonia") || name == "AuraDesigner"))
             {
-                var type = assembly.GetType("Avalonia.Controls." + typeName) ?? assembly.GetType("Avalonia." + typeName);
+                // Try common namespaces
+                var type = assembly.GetType("Avalonia.Controls." + typeName) 
+                        ?? assembly.GetType("Avalonia." + typeName)
+                        ?? assembly.GetType("Avalonia.Media." + typeName)
+                        ?? assembly.GetType("Avalonia.Styling." + typeName)
+                        ?? assembly.GetType("Avalonia.Animation." + typeName);
+
                 if (type == null) type = System.Linq.Enumerable.FirstOrDefault(assembly.GetTypes(), t => t.Name == typeName);
                 
                 if (type != null)
