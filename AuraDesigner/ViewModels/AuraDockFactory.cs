@@ -13,6 +13,8 @@ public class AuraDockFactory : Factory
     private IRootDock? _rootDock;
     private IDocumentDock? _documentDock;
 
+    public SolutionExplorerViewModel? SolutionExplorer { get; private set; }
+
     public override IRootDock CreateLayout()
     {
         var toolboxView = new ToolDock
@@ -25,6 +27,7 @@ public class AuraDockFactory : Factory
 
         var solutionExplorerVM = new SolutionExplorerViewModel { Id = "SolutionPanel", Title = "Solution Explorer" };
         solutionExplorerVM.FileOpenRequested += OnFileOpenRequested;
+        SolutionExplorer = solutionExplorerVM;
 
         var solutionView = new ToolDock
         {

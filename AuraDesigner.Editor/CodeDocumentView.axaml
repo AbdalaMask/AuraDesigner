@@ -1,0 +1,10 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:AvaloniaEdit="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             x:Class="AuraDesigner.Editor.CodeDocumentView">
+    <AvaloniaEdit:TextEditor x:Name="CodeEditor"
+                             ShowLineNumbers="True"
+                             FontFamily="Cascadia Code,Consolas,Menlo,Monospace"
+                             Background="#F5F5F5"
+                             Foreground="#333333" />
+</UserControl>

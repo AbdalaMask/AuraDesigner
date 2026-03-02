@@ -62,6 +62,28 @@ public static class XamlParser
         if (double.TryParse(element.Attribute(XName.Get("Width", ""))?.Value, out double w)) control.Width = w;
         if (double.TryParse(element.Attribute(XName.Get("Height", ""))?.Value, out double h)) control.Height = h;
         
+        // Parse Layout and Alignment Properties
+        if (element.Attribute("Margin")?.Value is string marginStr)
+        {
+            try { control.Margin = Avalonia.Thickness.Parse(marginStr); } catch { }
+        }
+
+        if (element.Attribute("Padding")?.Value is string paddingStr)
+        {
+            var pProp = control.GetType().GetProperty("Padding");
+            if (pProp != null && pProp.PropertyType == typeof(Avalonia.Thickness))
+            {
+                try { pProp.SetValue(control, Avalonia.Thickness.Parse(paddingStr)); } catch { }
+            }
+        }
+
+        if (element.Attribute("HorizontalAlignment")?.Value is string hAlignStr && Enum.TryParse(hAlignStr, true, out Avalonia.Layout.HorizontalAlignment hAlign)) control.HorizontalAlignment = hAlign;
+        if (element.Attribute("VerticalAlignment")?.Value is string vAlignStr && Enum.TryParse(vAlignStr, true, out Avalonia.Layout.VerticalAlignment vAlign)) control.VerticalAlignment = vAlign;
+
+        // Parse Grid Attached Properties
+        if (int.TryParse(element.Attribute(XName.Get("Column", "Grid"))?.Value ?? element.Attributes().FirstOrDefault(a => a.Name.LocalName == "Grid.Column")?.Value, out int col)) Grid.SetColumn(control, col);
+        if (int.TryParse(element.Attribute(XName.Get("Row", "Grid"))?.Value ?? element.Attributes().FirstOrDefault(a => a.Name.LocalName == "Grid.Row")?.Value, out int row)) Grid.SetRow(control, row);
+        
         var canvasLeft = element.Attribute(XName.Get("Left", "Canvas"));
         if (canvasLeft == null) canvasLeft = element.Attributes().FirstOrDefault(a => a.Name.LocalName == "Canvas.Left");
         if (canvasLeft != null && double.TryParse(canvasLeft.Value, out double left)) Canvas.SetLeft(control, left);
@@ -80,9 +102,31 @@ public static class XamlParser
             if (contentAttr != null) cc.Content = contentAttr;
         }
 
-        // Build Children
+        // Build Children & Nested Property Elements
         foreach (var childNode in element.Elements())
         {
+            // Check if this is a nested property element (e.g., <Button.RenderTransform>)
+            if (childNode.Name.LocalName.Contains("."))
+            {
+                string propName = childNode.Name.LocalName.Split('.')[1];
+                var propInfo = controlType.GetProperty(propName);
+                if (propInfo != null)
+                {
+                    // The actual object is inside the property tag
+                    var propObjectNode = childNode.Elements().FirstOrDefault();
+                    if (propObjectNode != null)
+                    {
+                        var propItem = BuildDesignTree(propObjectNode);
+                        if (propItem?.Component != null)
+                        {
+                            propInfo.SetValue(control, propItem.Component);
+                            item.AddChild((DesignItem)propItem);
+                        }
+                    }
+                }
+                continue; // Skip normal child processing
+            }
+
             var childItem = BuildDesignTree(childNode);
             if (childItem != null)
             {

@@ -38,6 +38,29 @@ public static class XamlGenerator
             if (!double.IsNaN(control.Width)) node.SetAttributeValue("Width", control.Width);
             if (!double.IsNaN(control.Height)) node.SetAttributeValue("Height", control.Height);
 
+            // Margin & Padding
+            if (control.Margin != Avalonia.Thickness.Parse("0")) node.SetAttributeValue("Margin", control.Margin.ToString());
+            
+            var paddingProp = control.GetType().GetProperty("Padding");
+            if (paddingProp != null && paddingProp.GetValue(control) is Avalonia.Thickness padding && padding != Avalonia.Thickness.Parse("0"))
+            {
+                node.SetAttributeValue("Padding", padding.ToString());
+            }
+
+            // Alignments
+            if (control.HorizontalAlignment != Avalonia.Layout.HorizontalAlignment.Stretch)
+                node.SetAttributeValue("HorizontalAlignment", control.HorizontalAlignment.ToString());
+            
+            if (control.VerticalAlignment != Avalonia.Layout.VerticalAlignment.Stretch)
+                node.SetAttributeValue("VerticalAlignment", control.VerticalAlignment.ToString());
+
+            // Grid Attributes
+            int gridCol = Grid.GetColumn(control);
+            if (gridCol > 0) node.SetAttributeValue("Grid.Column", gridCol);
+
+            int gridRow = Grid.GetRow(control);
+            if (gridRow > 0) node.SetAttributeValue("Grid.Row", gridRow);
+
             // Specific Properties
             if (control is ContentControl contentControl && contentControl.Content is string s)
             {
@@ -50,6 +73,24 @@ public static class XamlGenerator
             else if (control is TextBox textBox && !string.IsNullOrEmpty(textBox.Text))
             {
                 node.SetAttributeValue("Text", textBox.Text);
+            }
+
+            // Nested Properties (like RenderTransform)
+            if (control.RenderTransform != null)
+            {
+                var transformType = control.RenderTransform.GetType();
+                var transformNode = new XElement(DefaultNs + type.Name + ".RenderTransform");
+                var actualTransformNode = new XElement(DefaultNs + transformType.Name);
+                
+                // Currently only handling Angle for RotateTransform as an MVP based on user snippet
+                var angleProp = transformType.GetProperty("Angle");
+                if (angleProp != null)
+                {
+                    actualTransformNode.SetAttributeValue("Angle", angleProp.GetValue(control.RenderTransform));
+                }
+                
+                transformNode.Add(actualTransformNode);
+                node.Add(transformNode);
             }
         }
 
