@@ -15,8 +15,9 @@ public class DesignAdornerLayer : Canvas
 
     public DesignAdornerLayer()
     {
-        // Must be transparent but hit testable
-        Background = Brushes.Transparent;
+        // Removed Background = Brushes.Transparent;
+        // Background must be null so it allows pointer events to pass through 
+        // to the DesignSurfaceControl behind it. The Thumbs will still be hit-testable.
     }
 
     public void SelectItem(IDesignItem? item)
@@ -35,63 +36,13 @@ public class DesignAdornerLayer : Canvas
         }
     }
 
+    public event EventHandler? AdornerUpdated;
+
     public void UpdateAdorners()
     {
         _currentSelection?.UpdateBounds(this);
+        AdornerUpdated?.Invoke(this, EventArgs.Empty);
     }
 
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
-    {
-        base.OnPointerPressed(e);
-        if (_currentSelection?.TargetItem.Component is Control targetControl)
-        {
-            var point = e.GetCurrentPoint(this);
-            if (point.Properties.IsLeftButtonPressed)
-            {
-                // Check if we clicked inside the selected item bound
-                var bounds = _currentSelection.Bounds;
-                if (bounds.Contains(point.Position))
-                {
-                    _isDragging = true;
-                    _lastMousePosition = point.Position;
-                    e.Pointer.Capture(this);
-                    e.Handled = true;
-                }
-            }
-        }
-    }
-
-    protected override void OnPointerMoved(PointerEventArgs e)
-    {
-        base.OnPointerMoved(e);
-        if (_isDragging && _currentSelection?.TargetItem.Component is Control targetControl)
-        {
-            var currentPos = e.GetCurrentPoint(this).Position;
-            var delta = currentPos - _lastMousePosition;
-            _lastMousePosition = currentPos;
-
-            var left = Canvas.GetLeft(targetControl);
-            var top = Canvas.GetTop(targetControl);
-
-            if (double.IsNaN(left)) left = 0;
-            if (double.IsNaN(top)) top = 0;
-
-            Canvas.SetLeft(targetControl, left + delta.X);
-            Canvas.SetTop(targetControl, top + delta.Y);
-
-            UpdateAdorners();
-            e.Handled = true;
-        }
-    }
-
-    protected override void OnPointerReleased(PointerReleasedEventArgs e)
-    {
-        base.OnPointerReleased(e);
-        if (_isDragging)
-        {
-            _isDragging = false;
-            e.Pointer.Capture(null);
-            e.Handled = true;
-        }
-    }
+    // Moving and Resizing is now handled safely by the Thumb controls inside the SelectionAdorner.
 }

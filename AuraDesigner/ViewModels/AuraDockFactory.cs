@@ -23,12 +23,15 @@ public class AuraDockFactory : Factory
             ActiveDockable = new ToolboxViewModel { Id = "ToolboxPanel", Title = "Toolbox" }
         };
 
+        var solutionExplorerVM = new SolutionExplorerViewModel { Id = "SolutionPanel", Title = "Solution Explorer" };
+        solutionExplorerVM.FileOpenRequested += OnFileOpenRequested;
+
         var solutionView = new ToolDock
         {
             Id = "SolutionExplorer",
             Title = "Solution Explorer",
             Proportion = 0.5,
-            ActiveDockable = new SolutionExplorerViewModel { Id = "SolutionPanel", Title = "Solution Explorer" }
+            ActiveDockable = solutionExplorerVM
         };
         
         var propertiesView = new ToolDock
@@ -81,6 +84,44 @@ public class AuraDockFactory : Factory
         return rootDock;
     }
 
+    private void OnFileOpenRequested(object? sender, string fullPath)
+    {
+        if (_documentDock == null) return;
+
+        var fileName = System.IO.Path.GetFileName(fullPath);
+        
+        // Check if already open
+        foreach (var dockable in _documentDock.VisibleDockables!)
+        {
+            if (dockable.Id == fullPath)
+            {
+                _documentDock.ActiveDockable = dockable;
+                return;
+            }
+        }
+
+        Document newDoc;
+        if (fullPath.EndsWith(".axaml", System.StringComparison.OrdinalIgnoreCase))
+        {
+            newDoc = new DocumentViewModel
+            {
+                Id = fullPath,
+                Title = fileName
+            };
+        }
+        else
+        {
+            newDoc = new CodeDocumentViewModel
+            {
+                Id = fullPath,
+                Title = fileName
+            };
+        }
+
+        _documentDock.VisibleDockables.Add(newDoc);
+        _documentDock.ActiveDockable = newDoc;
+    }
+
     public override void InitLayout(IDockable layout)
     {
         ContextLocator = new Dictionary<string, Func<object>>
@@ -97,5 +138,17 @@ public class AuraDockFactory : Factory
         };
 
         base.InitLayout(layout);
+    }
+    
+    public override object? GetContext(string id)
+    {
+        // Try precise match first
+        if (ContextLocator?.TryGetValue(id, out var cLocator) == true)
+        {
+            return cLocator?.Invoke();
+        }
+        
+        // Fallback for dynamic documents (the Root Dock context)
+        return _rootDock;
     }
 }

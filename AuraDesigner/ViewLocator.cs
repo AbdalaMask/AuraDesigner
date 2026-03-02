@@ -13,6 +13,11 @@ public class ViewLocator : IDataTemplate
         if (data is null)
             return null;
 
+        if (data is CodeDocumentViewModel)
+        {
+            return new AuraDesigner.Editor.CodeDocumentView { DataContext = data };
+        }
+
         var name = data.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
         var type = Type.GetType(name);
 

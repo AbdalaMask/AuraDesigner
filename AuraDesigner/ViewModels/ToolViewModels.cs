@@ -42,22 +42,48 @@ public class SolutionExplorerViewModel : Tool
 {
     public ObservableCollection<SolutionNode> RootNodes { get; } = new();
 
+    public event EventHandler<string>? FileOpenRequested;
+
     public SolutionExplorerViewModel()
     {
-        // Load the current solution path (hardcoded to the demo project space for now)
-        string path = @"C:\Users\MyScade2026\New folder\AuraDesigner";
-        
+    }
+
+    public void LoadProject(string path)
+    {
+        RootNodes.Clear();
         if (Directory.Exists(path))
         {
             var root = new SolutionNode 
             { 
-                Name = "Solution 'AuraDesigner'", 
+                Name = $"Project '{Path.GetFileName(path)}'", 
                 FullPath = path, 
                 IsFile = false 
             };
             
             PopulateTree(path, root);
             RootNodes.Add(root);
+        }
+        else if (File.Exists(path))
+        {
+            // If they just opened a single file instead of a folder
+            var root = new SolutionNode 
+            { 
+                Name = $"File '{Path.GetFileName(path)}'", 
+                FullPath = path, 
+                IsFile = true 
+            };
+            RootNodes.Add(root);
+            
+            // Auto open the file
+            FileOpenRequested?.Invoke(this, path);
+        }
+    }
+
+    public void RequestOpenFile(SolutionNode node)
+    {
+        if (node != null && node.IsFile)
+        {
+            FileOpenRequested?.Invoke(this, node.FullPath);
         }
     }
 

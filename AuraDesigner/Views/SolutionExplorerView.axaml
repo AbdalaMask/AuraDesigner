@@ -4,7 +4,7 @@
              x:Class="AuraDesigner.Views.SolutionExplorerView"
              x:DataType="vm:SolutionExplorerViewModel">
     <Grid Background="#ffffff">
-        <TreeView Margin="5" ItemsSource="{Binding RootNodes}">
+        <TreeView Margin="5" ItemsSource="{Binding RootNodes}" DoubleTapped="OnItemDoubleTapped">
             <TreeView.ItemTemplate>
                 <TreeDataTemplate ItemsSource="{Binding Children}">
                     <StackPanel Orientation="Horizontal" Margin="2">

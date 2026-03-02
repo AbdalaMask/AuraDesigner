@@ -16,7 +16,7 @@
                     <Grid>
                         <!-- Placeholders - the viewmodel would link these properly later -->
                         <surface:DesignSurfaceControl x:Name="DesignSurface" />
-                        <adorners:DesignAdornerLayer x:Name="AdornerLayer" />
+                        <adorners:DesignAdornerLayer x:Name="AdornerLayer" ZIndex="99" />
                     </Grid>
                 </Border>
             </Grid>
